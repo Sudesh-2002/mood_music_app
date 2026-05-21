@@ -8,6 +8,7 @@ import '../../features/onboarding/presentation/pages/login_page.dart';
 import '../../features/onboarding/presentation/pages/source_selection_page.dart';
 import '../../features/onboarding/presentation/pages/permissions_page.dart';
 import '../../features/onboarding/presentation/pages/home_placeholder_page.dart';
+import '../../features/mood_detection/presentation/pages/mood_detection_page.dart';
 
 class AppRouter {
   static final _auth = LocalAuthDataSource();
@@ -25,6 +26,10 @@ class AppRouter {
       GoRoute(path: '/sources',   builder: (c, s) => const SourceSelectionPage()),
       GoRoute(path: '/permissions', builder: (c, s) => const PermissionsPage()),
       GoRoute(path: '/home',      builder: (c, s) => const HomePlaceholderPage()),
+      GoRoute(
+        path: '/mood-scan',
+        builder: (c, s) => const MoodDetectionPage(autoNavigate: true),
+      ),
     ],
   );
 }

@@ -51,7 +51,7 @@ class _SourceSelectionPageState extends State<SourceSelectionPage> {
     return Scaffold(
       backgroundColor: AppColors.bgDark,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -59,7 +59,7 @@ class _SourceSelectionPageState extends State<SourceSelectionPage> {
               const SizedBox(height: 40),
               const Text(
                 AppStrings.chooseSources,
-                style: TextStyle(
+                style:  TextStyle(
                   fontSize: 36, fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary, height: 1.1,
                 ),
@@ -76,7 +76,7 @@ class _SourceSelectionPageState extends State<SourceSelectionPage> {
                 Text(_error!,
                     style: const TextStyle(color: AppColors.secondary)),
               ],
-              const Spacer(),
+              const SizedBox(height: 100), // ← replaces Spacer()
               ElevatedButton(
                 onPressed: _loading ? null : _continue,
                 child: _loading
