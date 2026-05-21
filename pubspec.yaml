@@ -10,6 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
 
+  crypto: ^3.0.3
+  
   # State management
   flutter_bloc: ^8.1.5
   equatable: ^2.0.5
