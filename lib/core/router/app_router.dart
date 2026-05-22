@@ -10,6 +10,7 @@ import '../../features/onboarding/presentation/pages/permissions_page.dart';
 import '../../features/onboarding/presentation/pages/home_placeholder_page.dart';
 import '../../features/mood_detection/presentation/pages/mood_detection_page.dart';
 import '../../features/player/presentation/pages/player_page.dart';
+import '../../features/player/presentation/pages/local_player_page.dart';
 
 class AppRouter {
   static final router = GoRouter(
@@ -29,6 +30,10 @@ class AppRouter {
           final mood = s.extra as MoodLabel? ?? MoodLabel.neutral;
           return PlayerPage(mood: mood);
         },
+      ),
+      GoRoute(
+        path: '/local-player',
+        builder: (c, s) => const LocalPlayerPage(),
       ),
     ],
   );
