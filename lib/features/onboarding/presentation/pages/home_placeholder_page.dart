@@ -137,6 +137,35 @@ class _HomePlaceholderPageState extends State<HomePlaceholderPage> {
                   );
                 }).toList(),
               ),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () => context.go('/local-player'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgCard,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFFFFD93D).withOpacity(0.4),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.folder_rounded,
+                          color: Color(0xFFFFD93D), size: 22),
+                      SizedBox(width: 10),
+                      Text('Local Music Library',
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 15,
+                          )),
+                    ],
+                  ),
+                ),
+              ),
 
               const Spacer(),
               const SizedBox(height: 20),

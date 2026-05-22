@@ -57,6 +57,11 @@ dependencies:
   logger: ^2.4.0
   uuid: ^4.4.0
 
+  # Local files
+  file_picker: ^8.0.0
+  just_audio_background: ^0.0.1-beta.12
+  audio_metadata_reader: ^1.4.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
