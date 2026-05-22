@@ -1,0 +1,6 @@
+// Copy this file to api_constants.dart and fill in your keys
+class ApiConstants {
+  static const youtubeApiKey = 'YOUR_YOUTUBE_API_KEY_HERE';
+  static const youtubeBaseUrl = 'https://www.googleapis.com/youtube/v3';
+  static const maxResults = 10;
+}

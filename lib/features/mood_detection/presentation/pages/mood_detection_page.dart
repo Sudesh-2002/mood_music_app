@@ -77,7 +77,7 @@ class _MoodDetectionPageState extends State<MoodDetectionPage> {
     if (widget.autoNavigate && result.isReliable) {
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) {
-          context.go('/home', extra: result);
+          context.go('/player', extra: result.mood);
         }
       });
     }
