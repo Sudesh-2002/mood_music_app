@@ -12,6 +12,7 @@ import '../../features/mood_detection/presentation/pages/mood_history_page.dart'
 import '../../features/player/presentation/pages/player_page.dart';
 import '../../features/player/presentation/pages/local_player_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
+import '../../features/settings/presentation/pages/spotify_connect_page.dart';
 
 class AppRouter {
   static final router = GoRouter(
@@ -59,6 +60,9 @@ class AppRouter {
           return PlayerPage(mood: mood);
         },
       ),
+      GoRoute(
+        path: '/spotify-connect',
+        builder: (c, s) => const SpotifyConnectPage()),
     ],
   );
 }
