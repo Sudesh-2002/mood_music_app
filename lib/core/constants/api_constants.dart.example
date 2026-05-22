@@ -1,6 +1,13 @@
-// Copy this file to api_constants.dart and fill in your keys
 class ApiConstants {
+  // YouTube
   static const youtubeApiKey = 'YOUR_YOUTUBE_API_KEY_HERE';
   static const youtubeBaseUrl = 'https://www.googleapis.com/youtube/v3';
   static const maxResults = 10;
+
+  // Spotify
+  static const spotifyClientId = 'YOUR_SPOTIFY_CLIENT_ID';
+  static const spotifyClientSecret = 'YOUR_SPOTIFY_CLIENT_SECRET';
+  static const spotifyRedirectUri = 'moodmusic://callback';
+  static const spotifyBaseUrl = 'https://api.spotify.com/v1';
+  static const spotifyAuthUrl = 'https://accounts.spotify.com';
 }

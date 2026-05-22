@@ -164,6 +164,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   const Color(0xFFFFD93D)),
             ],
 
+            _buildTile(
+              icon: Icons.library_music_rounded,
+              title: 'Connect Spotify',
+              subtitle: 'Link your Spotify account',
+              iconColor: const Color(0xFF1DB954),
+              onTap: () => context.go('/spotify-connect'),
+            ),
+
             // App
             _buildSection('APP'),
             _buildTile(
