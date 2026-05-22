@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/mood_constants.dart';
 import '../../../../features/auth/data/datasources/local_auth_datasource.dart';
 
 class HomePlaceholderPage extends StatefulWidget {
@@ -53,6 +54,8 @@ class _HomePlaceholderPageState extends State<HomePlaceholderPage> {
                 ),
               ),
               const Spacer(),
+
+              // Scan Mood button
               Center(
                 child: GestureDetector(
                   onTap: () => context.go('/mood-scan'),
@@ -86,15 +89,56 @@ class _HomePlaceholderPageState extends State<HomePlaceholderPage> {
                   ),
                 ),
               ),
-              const Spacer(),
+
+              const SizedBox(height: 32),
+
+              // Quick mood test buttons
               const Center(
-                child: Text(
-                  'Step 4 — music player coming next',
-                  style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 13,
-                  ),
-                ),
+                child: Text('Or jump straight to music:',
+                    style: TextStyle(
+                        color: AppColors.textSecondary, fontSize: 13)),
               ),
+              const SizedBox(height: 16),
+
+              // Mood quick-select grid
+              GridView.count(
+                shrinkWrap: true,
+                crossAxisCount: 4,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                physics: const NeverScrollableScrollPhysics(),
+                children: MoodLabel.values.map((mood) {
+                  return GestureDetector(
+                    onTap: () => context.go('/player', extra: mood),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.bgCard,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.2),
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(mood.emoji,
+                              style: const TextStyle(fontSize: 22)),
+                          const SizedBox(height: 4),
+                          Text(
+                            mood.displayName,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+
+              const Spacer(),
               const SizedBox(height: 20),
             ],
           ),
