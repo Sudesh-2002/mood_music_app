@@ -16,6 +16,7 @@ import '../bloc/mood_detection_event.dart';
 import '../bloc/mood_detection_state.dart';
 import '../widgets/mood_overlay_widget.dart';
 import '../widgets/mood_result_card.dart';
+import '../../data/datasources/mood_history_datasource.dart';
 
 class MoodDetectionPage extends StatefulWidget {
   final bool autoNavigate; // true = auto go to player after detection
@@ -68,11 +69,17 @@ class _MoodDetectionPageState extends State<MoodDetectionPage> {
     });
   }
 
-  void _onMoodDetected(MoodResult result) {
+  void _onMoodDetected(MoodResult result) async {
     setState(() {
       _lastResult = result;
       _showResult = true;
     });
+
+    // Save to history
+    await MoodHistoryDataSource().saveMood(
+      mood: result.mood,
+      confidence: result.confidence,
+    );
 
     if (widget.autoNavigate && result.isReliable) {
       Future.delayed(const Duration(seconds: 2), () {
