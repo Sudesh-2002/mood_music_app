@@ -38,25 +38,63 @@ class _MoodOverlayWidgetState extends State<MoodOverlayWidget>
   Widget build(BuildContext context) {
     return BlocBuilder<MoodDetectionBloc, MoodDetectionState>(
       builder: (context, state) {
-        final isScanning = state is MoodDetectionReady && state.isScanning ||
-            state is MoodDetected;
+        final isScanning =
+            (state is MoodDetectionReady && state.isScanning) ||
+                state is MoodDetected;
 
-        return Center(
-          child: ScaleTransition(
-            scale: _pulseAnim,
-            child: CustomPaint(
-              size: const Size(260, 320),
-              painter: _FaceFramePainter(
-                color: isScanning ? AppColors.primary : Colors.white54,
-                isScanning: isScanning,
+        final noFace =
+            state is MoodDetected && state.result.noFaceDetected;
+
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            ScaleTransition(
+              scale: _pulseAnim,
+              child: CustomPaint(
+                size: const Size(260, 320),
+                painter: _FaceFramePainter(
+                  color: noFace
+                      ? Colors.orange
+                      : isScanning
+                          ? AppColors.primary
+                          : Colors.white54,
+                  isScanning: isScanning && !noFace,
+                ),
               ),
             ),
-          ),
+            if (noFace)
+              Positioned(
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.face_outlined,
+                          color: Colors.white, size: 16),
+                      SizedBox(width: 6),
+                      Text(
+                        'No face detected — centre your face',
+                        style: TextStyle(
+                            color: Colors.white, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );
   }
 }
+
+// ─── Painter — top level, outside all classes ────────────────────────────────
 
 class _FaceFramePainter extends CustomPainter {
   final Color color;
@@ -72,10 +110,10 @@ class _FaceFramePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
-    final cornerSize = 30.0;
-    final r = Radius.circular(8);
+    const cornerSize = 30.0;
+    const r = Radius.circular(8);
 
-    // Top-left corner
+    // Top-left
     canvas.drawPath(
       Path()
         ..moveTo(0, cornerSize)
@@ -85,7 +123,7 @@ class _FaceFramePainter extends CustomPainter {
       paint,
     );
 
-    // Top-right corner
+    // Top-right
     canvas.drawPath(
       Path()
         ..moveTo(size.width - cornerSize, 0)
@@ -95,7 +133,7 @@ class _FaceFramePainter extends CustomPainter {
       paint,
     );
 
-    // Bottom-left corner
+    // Bottom-left
     canvas.drawPath(
       Path()
         ..moveTo(0, size.height - cornerSize)
@@ -105,7 +143,7 @@ class _FaceFramePainter extends CustomPainter {
       paint,
     );
 
-    // Bottom-right corner
+    // Bottom-right
     canvas.drawPath(
       Path()
         ..moveTo(size.width - cornerSize, size.height)
@@ -115,7 +153,7 @@ class _FaceFramePainter extends CustomPainter {
       paint,
     );
 
-    // Scan line when active
+    // Scan line
     if (isScanning) {
       final scanPaint = Paint()
         ..color = color.withOpacity(0.3)

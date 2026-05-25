@@ -70,12 +70,18 @@ class _MoodDetectionPageState extends State<MoodDetectionPage> {
   }
 
   void _onMoodDetected(MoodResult result) async {
+    // Don't show result card or save if no face detected
+    if (result.noFaceDetected) {
+      setState(() => _showResult = false);
+      return;
+    }
+
     setState(() {
       _lastResult = result;
       _showResult = true;
     });
 
-    // Save to history
+    // Save to history only when face is detected
     await MoodHistoryDataSource().saveMood(
       mood: result.mood,
       confidence: result.confidence,

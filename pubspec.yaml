@@ -65,6 +65,11 @@ dependencies:
   # Spotify
   flutter_web_auth_2: ^4.0.0
 
+  # Face detection
+  google_mlkit_face_detection: ^0.11.0
+
+  path_provider: ^2.1.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
