@@ -1,29 +1,32 @@
 import 'dart:typed_data';
-import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 import '../../../../core/constants/mood_constants.dart';
 import '../../domain/entities/mood_result.dart';
+import 'face_detection_datasource.dart';
 
 class TFLiteEmotionDataSource {
   static const _modelPath = 'assets/models/emotion_model.tflite';
-  static const _inputSize = 48; // FER model expects 48x48
+  static const _inputSize = 48;
   static const _numClasses = 7;
 
   Interpreter? _interpreter;
   bool _isInitialized = false;
-  bool _useMockMode = false; // fallback if model not loaded
+  bool _useMockMode = false;
 
-  // FER emotion order (standard FER2013 dataset order)
+  // FER2013 label order
   static const List<MoodLabel> _labelOrder = [
-    MoodLabel.angry,
-    MoodLabel.disgusted,
-    MoodLabel.fearful,
-    MoodLabel.happy,
-    MoodLabel.neutral,
-    MoodLabel.sad,
-    MoodLabel.surprised,
+    MoodLabel.angry,      // 0
+    MoodLabel.disgusted,  // 1
+    MoodLabel.fearful,    // 2
+    MoodLabel.happy,      // 3
+    MoodLabel.sad,        // 4
+    MoodLabel.surprised,  // 5
+    MoodLabel.neutral,    // 6
   ];
+
+  // Face detector instance
+  final FaceDetectionDataSource _faceDetector = FaceDetectionDataSource();
 
   Future<bool> initialize() async {
     try {
@@ -32,32 +35,44 @@ class TFLiteEmotionDataSource {
         _modelPath,
         options: options,
       );
+      _interpreter!.allocateTensors();
+      _faceDetector.initialize();
       _isInitialized = true;
       _useMockMode = false;
       return true;
     } catch (e) {
-      // Model not found or invalid — use mock mode for development
       _useMockMode = true;
       _isInitialized = true;
+      _faceDetector.initialize();
       return true;
     }
   }
 
   Future<MoodResult> detectEmotion(Uint8List jpegBytes) async {
     if (!_isInitialized) await initialize();
+
+    // Step 1: Detect and crop face
+    final faceBytes = await _faceDetector.detectAndCropFace(jpegBytes);
+
+    // Step 2: If no face found return a "no face" result
+    if (faceBytes == null) {
+      return _noFaceResult();
+    }
+
+    // Step 3: Run mock or real model on cropped face
     if (_useMockMode) return _mockResult();
 
     try {
-      // Decode and preprocess image
-      final image = img.decodeImage(jpegBytes);
-      if (image == null) return _mockResult();
+      final image = img.decodeImage(faceBytes);
+      if (image == null) return _noFaceResult();
 
       final input = _preprocessImage(image);
-      final output = List.filled(_numClasses, 0.0).reshape([1, _numClasses]);
+      final output =
+          List.generate(1, (_) => List.filled(_numClasses, 0.0));
 
       _interpreter!.run(input, output);
 
-      final scores = List<double>.from(output[0] as List);
+      final scores = List<double>.from(output[0]);
       return _buildResult(scores);
     } catch (e) {
       return _mockResult();
@@ -65,23 +80,21 @@ class TFLiteEmotionDataSource {
   }
 
   List _preprocessImage(img.Image image) {
-    // Resize to 48x48 grayscale
     final resized = img.copyResize(
       image,
       width: _inputSize,
       height: _inputSize,
+      interpolation: img.Interpolation.linear,
     );
 
-    // Build input tensor [1, 48, 48, 1] normalized 0-1
-    final input = List.generate(
-      1,
-      (_) => List.generate(
+    // Convert to grayscale [1, 48, 48, 1] float32 tensor
+    return [
+      List.generate(
         _inputSize,
         (y) => List.generate(
           _inputSize,
           (x) {
             final pixel = resized.getPixel(x, y);
-            // Convert to grayscale
             final gray = (pixel.r * 0.299 +
                     pixel.g * 0.587 +
                     pixel.b * 0.114) /
@@ -89,16 +102,18 @@ class TFLiteEmotionDataSource {
             return [gray];
           },
         ),
-      ),
-    );
-    return input;
+      )
+    ];
   }
 
   MoodResult _buildResult(List<double> scores) {
-    // Apply softmax
-    final softmax = _softmax(scores);
+    final maxVal = scores.reduce((a, b) => a > b ? a : b);
+    final exps = scores
+        .map((s) => _expApprox(s - maxVal))
+        .toList();
+    final sumExp = exps.reduce((a, b) => a + b);
+    final softmax = exps.map((e) => e / sumExp).toList();
 
-    // Find dominant mood
     int maxIdx = 0;
     for (int i = 1; i < softmax.length; i++) {
       if (softmax[i] > softmax[maxIdx]) maxIdx = i;
@@ -117,27 +132,34 @@ class TFLiteEmotionDataSource {
     );
   }
 
-  List<double> _softmax(List<double> scores) {
-    final maxScore = scores.reduce((a, b) => a > b ? a : b);
-    final exps = scores.map((s) => (s - maxScore)).map((s) {
-      // Simple exp approximation
-      return 1.0 / (1.0 + (-s).abs());
-    }).toList();
-    final sum = exps.reduce((a, b) => a + b);
-    return exps.map((e) => e / sum).toList();
+  double _expApprox(double x) {
+    final clamped = x.clamp(-20.0, 20.0);
+    return clamped >= 0
+        ? 1.0 + clamped + clamped * clamped / 2
+        : 1.0 / (1.0 - clamped + clamped * clamped / 2);
   }
 
-  // Mock result for development without a real model
+  /// Returned when no face is detected in the frame
+  MoodResult _noFaceResult() {
+    final allScores = <MoodLabel, double>{
+      for (final m in MoodLabel.values) m: 1.0 / 7,
+    };
+    return MoodResult(
+      mood: MoodLabel.neutral,
+      confidence: 0.0,   // 0% confidence = no face
+      allScores: allScores,
+      detectedAt: DateTime.now(),
+      noFaceDetected: true,
+    );
+  }
+
   MoodResult _mockResult() {
     final moods = MoodLabel.values;
-    final random = DateTime.now().millisecond % moods.length;
-    final mood = moods[random];
-
-    final allScores = <MoodLabel, double>{};
-    for (final m in moods) {
-      allScores[m] = m == mood ? 0.75 : 0.04;
-    }
-
+    final idx = DateTime.now().millisecond % moods.length;
+    final mood = moods[idx];
+    final allScores = <MoodLabel, double>{
+      for (final m in moods) m: m == mood ? 0.75 : 0.04,
+    };
     return MoodResult(
       mood: mood,
       confidence: 0.75,
@@ -148,6 +170,7 @@ class TFLiteEmotionDataSource {
 
   void dispose() {
     _interpreter?.close();
+    _faceDetector.dispose();
     _isInitialized = false;
   }
 }

@@ -22,7 +22,7 @@ class CameraDataSource {
 
     _controller = CameraController(
       front,
-      ResolutionPreset.medium, // balance quality vs performance
+      ResolutionPreset.high,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.jpeg,
     );

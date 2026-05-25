@@ -51,7 +51,7 @@ class MoodDetectionBloc
     CameraFrameCaptured event,
     Emitter<MoodDetectionState> emit,
   ) async {
-    if (_isProcessing) return; // drop frames while processing
+    if (_isProcessing) return;
     _isProcessing = true;
     try {
       final result = await detectMood(event.imageBytes);
