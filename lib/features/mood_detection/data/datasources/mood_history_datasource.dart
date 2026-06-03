@@ -35,7 +35,6 @@ class MoodHistoryDataSource {
     );
     await box.put(entry.id, entry);
 
-    // Keep only last 100 entries
     if (box.length > 100) {
       final keys = box.keys.toList();
       await box.delete(keys.first);

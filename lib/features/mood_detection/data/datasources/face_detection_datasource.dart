@@ -20,21 +20,19 @@ class FaceDetectionDataSource {
         enableLandmarks: false,
         enableContours: false,
         enableTracking: false,
-        minFaceSize: 0.10, // lowered to 10% — more lenient
-        performanceMode: FaceDetectorMode.accurate, // more accurate
+        minFaceSize: 0.10,
+        performanceMode: FaceDetectorMode.accurate,
       ),
     );
     _isInitialized = true;
   }
 
-  /// Main method — saves bytes to temp file then runs ML Kit on the file.
   Future<Uint8List?> detectAndCropFace(Uint8List jpegBytes) async {
     if (!_isInitialized) initialize();
     if (_isProcessing) return null;
     _isProcessing = true;
 
     try {
-      // Write JPEG to a temp file — ML Kit works best with file path
       final tempDir = await getTemporaryDirectory();
       final tempFile = File(
           '${tempDir.path}/mlkit_input_${DateTime.now().millisecondsSinceEpoch}.jpg');
@@ -44,12 +42,10 @@ class FaceDetectionDataSource {
       final inputImage = InputImage.fromFilePath(tempFile.path);
       final faces = await _detector.processImage(inputImage);
 
-      // Clean up temp file
       await tempFile.delete();
 
       if (faces.isEmpty) return null;
 
-      // Use the largest face found
       final face = faces.reduce((a, b) =>
           _faceArea(a) > _faceArea(b) ? a : b);
 

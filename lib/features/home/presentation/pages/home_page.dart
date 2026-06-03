@@ -38,8 +38,6 @@ class _HomePageState extends State<HomePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
-
-              // Header
               Row(
                 children: [
                   Expanded(
@@ -66,7 +64,6 @@ class _HomePageState extends State<HomePage> {
                       ],
                     ),
                   ),
-                  // App logo
                   Container(
                     width: 52,
                     height: 52,
@@ -82,7 +79,6 @@ class _HomePageState extends State<HomePage> {
 
               const SizedBox(height: 36),
 
-              // Scan mood button
               GestureDetector(
                 onTap: () => context.go('/mood-scan'),
                 child: Container(
@@ -135,7 +131,6 @@ class _HomePageState extends State<HomePage> {
 
               const SizedBox(height: 28),
 
-              // Quick mood select
               const Text('Or pick a mood manually:',
                   style: TextStyle(
                     color: AppColors.textSecondary,

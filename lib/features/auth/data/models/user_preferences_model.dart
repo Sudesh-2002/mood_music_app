@@ -14,10 +14,10 @@ class UserPreferencesModel extends HiveObject {
   bool showMoodHistory;
 
   @HiveField(3)
-  String preferredSource; // 'spotify' | 'youtube' | 'local'
+  String preferredSource;
 
   @HiveField(4)
-  int moodScanIntervalSeconds; // how often to re-scan mood
+  int moodScanIntervalSeconds;
 
   UserPreferencesModel({
     this.isDarkMode = true,
