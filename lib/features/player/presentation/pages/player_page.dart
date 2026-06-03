@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart' as yt;
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/mood_constants.dart';
+import '../../../../features/auth/data/datasources/local_auth_datasource.dart';
 import '../../presentation/bloc/player_bloc.dart';
 import '../../presentation/bloc/player_event.dart';
 import '../../presentation/bloc/player_state.dart';
@@ -20,14 +21,54 @@ class PlayerPage extends StatefulWidget {
 }
 
 class _PlayerPageState extends State<PlayerPage> {
-  late final PlayerBloc _bloc;
+  PlayerBloc? _bloc;
   yt.YoutubePlayerController? _ytController;
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _bloc = PlayerBloc.create();
-    _bloc.add(LoadPlaylistForMood(widget.mood));
+    _initBloc();
+  }
+
+  /// Reads the user's selected music sources from Hive and picks the best one.
+  /// Priority: Spotify > YouTube > Local
+  /// If Local is the ONLY source, redirect to /local-player immediately.
+  Future<void> _initBloc() async {
+    final user = await LocalAuthDataSource().getCurrentUser();
+    final sourceNames = user?.musicSources ?? ['youtube'];
+
+    final sources = sourceNames
+        .map((s) => MusicSource.values.firstWhere(
+              (m) => m.name == s,
+              orElse: () => MusicSource.youtube,
+            ))
+        .toSet();
+
+    // If only Local is selected, redirect to local player
+    if (sources.length == 1 && sources.contains(MusicSource.local)) {
+      if (mounted) context.go('/local-player');
+      return;
+    }
+
+    // Pick best source: Spotify > YouTube
+    MusicSource chosen = MusicSource.youtube;
+    if (sources.contains(MusicSource.spotify)) {
+      chosen = MusicSource.spotify;
+    }
+
+    final bloc = await PlayerBloc.createForSource(chosen);
+    if (!mounted) {
+      bloc.close();
+      return;
+    }
+
+    setState(() {
+      _bloc = bloc;
+      _loading = false;
+    });
+
+    _bloc!.add(LoadPlaylistForMood(widget.mood));
   }
 
   void _initYouTubeController(String videoId) {
@@ -48,7 +89,7 @@ class _PlayerPageState extends State<PlayerPage> {
   void _onPlayerStateChanged() {
     if (_ytController == null) return;
     if (_ytController!.value.playerState == yt.PlayerState.ended) {
-      _bloc.add(PlayerEnded());
+      _bloc?.add(PlayerEnded());
     }
   }
 
@@ -56,7 +97,7 @@ class _PlayerPageState extends State<PlayerPage> {
   void dispose() {
     _ytController?.removeListener(_onPlayerStateChanged);
     _ytController?.dispose();
-    _bloc.close();
+    _bloc?.close();
     super.dispose();
   }
 
@@ -74,21 +115,42 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Show loading while resolving music source
+    if (_loading || _bloc == null) {
+      return Scaffold(
+        backgroundColor: AppColors.bgDark,
+        body: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppColors.primary),
+              SizedBox(height: 16),
+              Text('Setting up your music...',
+                  style: TextStyle(color: AppColors.textSecondary)),
+            ],
+          ),
+        ),
+      );
+    }
+
     return BlocProvider.value(
-      value: _bloc,
+      value: _bloc!,
       child: BlocConsumer<PlayerBloc, PlayerState>(
         listener: (context, state) {
           if (state is PlayerLoaded) {
             final videoId = state.currentSong.videoId;
-            if (_ytController == null) {
-              _initYouTubeController(videoId);
-            } else if (_ytController!.initialVideoId != videoId) {
-              _ytController!.load(videoId);
-            }
-            if (state.isPlaying) {
-              _ytController?.play();
-            } else {
-              _ytController?.pause();
+            // Only init YouTube player for YouTube songs (videoId non-empty)
+            if (videoId.isNotEmpty) {
+              if (_ytController == null) {
+                _initYouTubeController(videoId);
+              } else if (_ytController!.initialVideoId != videoId) {
+                _ytController!.load(videoId);
+              }
+              if (state.isPlaying) {
+                _ytController?.play();
+              } else {
+                _ytController?.pause();
+              }
             }
           }
         },
@@ -110,16 +172,16 @@ class _PlayerPageState extends State<PlayerPage> {
                       isPlaying: state.isPlaying,
                       hasNext: state.hasNext,
                       hasPrevious: state.hasPrevious,
-                      onPlay: () => _bloc.add(TogglePause()),
-                      onNext: () => _bloc.add(PlayNext()),
-                      onPrevious: () => _bloc.add(PlayPrevious()),
+                      onPlay: () => _bloc!.add(TogglePause()),
+                      onNext: () => _bloc!.add(PlayNext()),
+                      onPrevious: () => _bloc!.add(PlayPrevious()),
                     ),
                     const Divider(color: AppColors.bgCard),
                     Expanded(
                       child: PlaylistWidget(
                         songs: state.playlist,
                         currentIndex: state.currentIndex,
-                        onTap: (song) => _bloc.add(PlaySong(song)),
+                        onTap: (song) => _bloc!.add(PlaySong(song)),
                       ),
                     ),
                   ],
@@ -156,8 +218,8 @@ class _PlayerPageState extends State<PlayerPage> {
                                 textAlign: TextAlign.center),
                             const SizedBox(height: 24),
                             ElevatedButton(
-                              onPressed: () => _bloc
-                                  .add(LoadPlaylistForMood(widget.mood)),
+                              onPressed: () =>
+                                  _bloc!.add(LoadPlaylistForMood(widget.mood)),
                               child: const Text('Retry'),
                             ),
                           ],
@@ -221,7 +283,7 @@ class _PlayerPageState extends State<PlayerPage> {
         playedColor: AppColors.primary,
         handleColor: AppColors.primary,
       ),
-      onReady: () => _bloc.add(PlayerReady()),
+      onReady: () => _bloc?.add(PlayerReady()),
     );
   }
 
@@ -250,12 +312,27 @@ class _PlayerPageState extends State<PlayerPage> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            '${state.currentIndex + 1} of ${state.playlist.length}',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-            ),
+          Row(
+            children: [
+              Icon(
+                state.currentSong.source == MusicSource.spotify
+                    ? Icons.library_music_rounded
+                    : Icons.play_circle_fill_rounded,
+                size: 14,
+                color: state.currentSong.source == MusicSource.spotify
+                    ? const Color(0xFF1DB954)
+                    : const Color(0xFFFF0000),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${state.currentSong.source.displayName}  •  '
+                '${state.currentIndex + 1} of ${state.playlist.length}',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -128,7 +128,7 @@ class TFLiteEmotionDataSource {
       interpolation: img.Interpolation.linear,
     );
 
-    // Convert to grayscale [1, 48, 48, 1] float32 tensor
+    // Output RGB [1, 48, 48, 3] float32 tensor — model expects 3-channel input
     return [
       List.generate(
         _inputSize,
@@ -136,11 +136,11 @@ class TFLiteEmotionDataSource {
           _inputSize,
           (x) {
             final pixel = resized.getPixel(x, y);
-            final gray = (pixel.r * 0.299 +
-                    pixel.g * 0.587 +
-                    pixel.b * 0.114) /
-                255.0;
-            return [gray];
+            return [
+              pixel.r / 255.0,
+              pixel.g / 255.0,
+              pixel.b / 255.0,
+            ];
           },
         ),
       )

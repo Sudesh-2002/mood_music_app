@@ -87,6 +87,21 @@ class LocalAuthDataSource {
     await box.delete('current_user_id');
   }
 
+  Future<void> updateMusicSources(List<String> sources) async {
+    final user = await getCurrentUser();
+    if (user == null) return;
+    final box = Hive.box<UserModel>(_userBox);
+    final updated = UserModel(
+      id: user.id,
+      name: user.name,
+      pinHash: user.pinHash,
+      musicSources: sources,
+      createdAt: user.createdAt,
+      hasCompletedOnboarding: user.hasCompletedOnboarding,
+    );
+    await box.put(user.id, updated);
+  }
+
   Future<bool> get isLoggedIn async {
     final user = await getCurrentUser();
     return user != null;

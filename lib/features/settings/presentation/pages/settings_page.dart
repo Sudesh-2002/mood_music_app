@@ -244,7 +244,7 @@ class _SettingsPageState extends State<SettingsPage> {
         trailing: Switch(
           value: isEnabled,
           activeColor: color,
-          onChanged: (val) {
+          onChanged: (val) async {
             setState(() {
               if (val) {
                 _sources.add(source);
@@ -252,6 +252,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 _sources.remove(source);
               }
             });
+            // Persist the updated sources to Hive immediately
+            await LocalAuthDataSource().updateMusicSources(
+              _sources.map((s) => s.name).toList(),
+            );
           },
         ),
       ),

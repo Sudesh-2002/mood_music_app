@@ -4,14 +4,26 @@ import '../../../../core/errors/failures.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/repositories/music_repository.dart';
 import '../datasources/youtube_datasource.dart';
+import '../datasources/spotify_datasource.dart';
 
 class MusicRepositoryImpl implements MusicRepository {
   final YouTubeDataSource youtubeDataSource;
+  final SpotifyDataSource? spotifyDataSource;
 
-  MusicRepositoryImpl(this.youtubeDataSource);
+  MusicRepositoryImpl(this.youtubeDataSource, {this.spotifyDataSource});
 
   @override
   Future<Either<Failure, List<Song>>> getSongsByMood(MoodLabel mood) async {
+    // Prefer Spotify if available
+    if (spotifyDataSource != null) {
+      try {
+        final songs = await spotifyDataSource!.getRecommendations(mood);
+        if (songs.isNotEmpty) return Right(songs);
+      } catch (_) {
+        // Fall through to YouTube
+      }
+    }
+    // Default: YouTube
     try {
       final songs = await youtubeDataSource.searchByMood(mood);
       return Right(songs);

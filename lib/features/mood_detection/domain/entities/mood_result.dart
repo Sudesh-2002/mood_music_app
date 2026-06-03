@@ -15,8 +15,8 @@ class MoodResult {
     this.noFaceDetected = false,
   });
 
-  // Only reliable if face detected AND confidence >= 50%
-  bool get isReliable => !noFaceDetected && confidence >= 0.50;
+  // Only reliable if face detected AND confidence >= 35%
+  bool get isReliable => !noFaceDetected && confidence >= 0.35;
 
   String get confidencePercent =>
       '${(confidence * 100).toStringAsFixed(0)}%';

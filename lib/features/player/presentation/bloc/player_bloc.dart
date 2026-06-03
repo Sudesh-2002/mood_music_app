@@ -1,7 +1,10 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../music/domain/usecases/get_songs_by_mood_usecase.dart';
 import '../../../music/data/datasources/youtube_datasource.dart';
+import '../../../music/data/datasources/spotify_datasource.dart';
+import '../../../music/data/datasources/spotify_auth_datasource.dart';
 import '../../../music/data/repositories/music_repository_impl.dart';
+import '../../../../core/constants/mood_constants.dart';
 import 'player_event.dart';
 import 'player_state.dart';
 
@@ -87,7 +90,6 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
           isPlaying: true,
         ));
       } else {
-        // Restart playlist
         emit(state.copyWith(currentIndex: 0, isPlaying: true));
       }
     }
@@ -100,6 +102,26 @@ class PlayerBloc extends Bloc<PlayerEvent, PlayerState> {
     }
   }
 
+  /// Creates a PlayerBloc wired to the given [source].
+  /// - [MusicSource.spotify] → uses Spotify if authenticated, falls back to YouTube.
+  /// - [MusicSource.youtube] → YouTube only.
+  /// - [MusicSource.local]   → not handled here (redirect to local-player in UI).
+  static Future<PlayerBloc> createForSource(MusicSource source) async {
+    final ytDs = YouTubeDataSource();
+
+    SpotifyDataSource? spotifyDs;
+    if (source == MusicSource.spotify) {
+      final auth = SpotifyAuthDataSource();
+      final isAuth = await auth.isAuthenticated;
+      if (isAuth) spotifyDs = SpotifyDataSource(auth);
+    }
+
+    final repo = MusicRepositoryImpl(ytDs, spotifyDataSource: spotifyDs);
+    final usecase = GetSongsByMoodUseCase(repo);
+    return PlayerBloc(getSongsByMood: usecase);
+  }
+
+  // Legacy sync factory (YouTube only) — kept for backward compatibility
   static PlayerBloc create() {
     final ds = YouTubeDataSource();
     final repo = MusicRepositoryImpl(ds);
