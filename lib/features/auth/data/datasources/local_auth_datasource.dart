@@ -18,7 +18,7 @@ class LocalAuthDataSource {
   bool _initialized = false;
 
   Future<void> init() async {
-    if (_initialized) return; // guard — never register twice
+    if (_initialized) return;
     _initialized = true;
 
     Hive.registerAdapter(UserModelAdapter());

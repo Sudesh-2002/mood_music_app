@@ -52,5 +52,5 @@ class AppTheme {
     ),
   );
 
-  static ThemeData get light => dark; // use dark as default for music app feel
+  static ThemeData get light => dark;
 }
