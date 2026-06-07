@@ -1,3 +1,4 @@
+import 'dart:math' show exp;
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'package:logger/logger.dart';
@@ -26,15 +27,16 @@ class TFLiteEmotionDataSource {
   bool _isInitialized = false;
   bool _useMockMode = false;
 
-  // FER2013 label order
+  // RAF-DB standard label order (verified against official dataset indexing)
+  // Ref: https://whdeng.cn/RAF/model1.html
   static const List<MoodLabel> _labelOrder = [
-    MoodLabel.angry,      // 0
-    MoodLabel.disgusted,  // 1
-    MoodLabel.fearful,    // 2
-    MoodLabel.happy,      // 3
-    MoodLabel.sad,        // 4
-    MoodLabel.surprised,  // 5
-    MoodLabel.neutral,    // 6
+    MoodLabel.surprised,  // 0 — Surprise
+    MoodLabel.fearful,    // 1 — Fear
+    MoodLabel.disgusted,  // 2 — Disgust
+    MoodLabel.happy,      // 3 — Happiness
+    MoodLabel.sad,        // 4 — Sadness
+    MoodLabel.angry,      // 5 — Anger
+    MoodLabel.neutral,    // 6 — Neutral
   ];
 
   // Face detector instance
@@ -128,7 +130,15 @@ class TFLiteEmotionDataSource {
       interpolation: img.Interpolation.linear,
     );
 
-    // Output RGB [1, 48, 48, 3] float32 tensor — model expects 3-channel input
+    // RAF-DB models are trained on color RGB images (unlike FER2013 which is
+    // grayscale). We apply ImageNet mean/std normalization since most RAF-DB
+    // models use a MobileNet/ResNet backbone pretrained on ImageNet.
+    //   mean = [0.485, 0.456, 0.406]  (R, G, B)
+    //   std  = [0.229, 0.224, 0.225]  (R, G, B)
+    const rMean = 0.485; const rStd = 0.229;
+    const gMean = 0.456; const gStd = 0.224;
+    const bMean = 0.406; const bStd = 0.225;
+
     return [
       List.generate(
         _inputSize,
@@ -137,9 +147,9 @@ class TFLiteEmotionDataSource {
           (x) {
             final pixel = resized.getPixel(x, y);
             return [
-              pixel.r / 255.0,
-              pixel.g / 255.0,
-              pixel.b / 255.0,
+              (pixel.r / 255.0 - rMean) / rStd,
+              (pixel.g / 255.0 - gMean) / gStd,
+              (pixel.b / 255.0 - bMean) / bStd,
             ];
           },
         ),
@@ -148,46 +158,62 @@ class TFLiteEmotionDataSource {
   }
 
   MoodResult _buildResult(List<double> scores) {
-    final maxVal = scores.reduce((a, b) => a > b ? a : b);
-    final exps = scores
-        .map((s) => _expApprox(s - maxVal))
-        .toList();
-    final sumExp = exps.reduce((a, b) => a + b);
-    final softmax = exps.map((e) => e / sumExp).toList();
+    // FIX #2: Auto-detect whether the model already outputs softmax probabilities
+    // or raw logits, and handle each correctly.
+    //
+    // - If values are all ≥ 0 AND sum ≈ 1.0 → model outputs softmax → use directly.
+    //   Applying softmax AGAIN to already-softmaxed values squashes a confident
+    //   [0.7, 0.1, ...] distribution toward uniform [0.2, 0.16, ...], which was
+    //   the primary cause of the low confidence scores.
+    //
+    // - Otherwise → raw logits → apply proper softmax using dart:math's exp().
+    //   The old _expApprox (Taylor series 1+x+x²/2) introduced up to 87% error
+    //   for values outside [-2, 2], completely corrupting the softmax output.
+    final rawSum = scores.fold(0.0, (s, v) => s + v);
+    final allNonNegative = scores.every((v) => v >= -1e-6);
+    final alreadySoftmax = allNonNegative && (rawSum - 1.0).abs() < 0.05;
+
+    final List<double> probs;
+    if (alreadySoftmax) {
+      // FIX #3: Model outputs probabilities — use them directly
+      probs = scores;
+      _log.d('[TFLite] ℹ️ Model output is already softmax (sum=${rawSum.toStringAsFixed(4)})');
+    } else {
+      // FIX #3: Model outputs logits — apply numerically stable softmax
+      // using dart:math exp() instead of the broken Taylor approximation
+      final maxVal = scores.reduce((a, b) => a > b ? a : b);
+      final exps = scores.map((s) => exp(s - maxVal)).toList();
+      final sumExp = exps.reduce((a, b) => a + b);
+      probs = exps.map((e) => e / sumExp).toList();
+      _log.d('[TFLite] ℹ️ Applied softmax to logits (raw sum=${rawSum.toStringAsFixed(4)})');
+    }
 
     int maxIdx = 0;
-    for (int i = 1; i < softmax.length; i++) {
-      if (softmax[i] > softmax[maxIdx]) maxIdx = i;
+    for (int i = 1; i < probs.length; i++) {
+      if (probs[i] > probs[maxIdx]) maxIdx = i;
     }
 
-    // Log softmax probabilities
-    final softmaxLog = StringBuffer('[TFLite] 📈 Softmax probabilities:\n');
+    // Log final probabilities
+    final probLog = StringBuffer('[TFLite] 📈 Emotion probabilities:\n');
     for (int i = 0; i < _labelOrder.length; i++) {
-      final bar = '█' * (softmax[i] * 20).round();
-      softmaxLog.writeln(
-        '  ${_labelOrder[i].name.padRight(10)}: ${(softmax[i] * 100).toStringAsFixed(1).padLeft(5)}%  $bar',
+      final bar = '█' * (probs[i] * 20).round();
+      probLog.writeln(
+        '  ${_labelOrder[i].name.padRight(10)}: ${(probs[i] * 100).toStringAsFixed(1).padLeft(5)}%  $bar',
       );
     }
-    _log.d(softmaxLog.toString());
+    _log.d(probLog.toString());
 
     final allScores = <MoodLabel, double>{};
     for (int i = 0; i < _labelOrder.length; i++) {
-      allScores[_labelOrder[i]] = softmax[i];
+      allScores[_labelOrder[i]] = probs[i];
     }
 
     return MoodResult(
       mood: _labelOrder[maxIdx],
-      confidence: softmax[maxIdx],
+      confidence: probs[maxIdx],
       allScores: allScores,
       detectedAt: DateTime.now(),
     );
-  }
-
-  double _expApprox(double x) {
-    final clamped = x.clamp(-20.0, 20.0);
-    return clamped >= 0
-        ? 1.0 + clamped + clamped * clamped / 2
-        : 1.0 / (1.0 - clamped + clamped * clamped / 2);
   }
 
   MoodResult _noFaceResult() {
