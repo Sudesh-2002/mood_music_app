@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'package:audio_service/audio_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/local_song_model.dart';
 
@@ -69,12 +71,27 @@ class LocalAudioDataSource {
     await _saveLibrary();
   }
 
-  // Play a specific song by index
+  // Play a specific song by index.
+  // Uses AudioSource.file with a MediaItem tag so just_audio_background
+  // can display the song title/artist on the lock screen and in the
+  // Android/iOS notification shade.
   Future<void> playAt(int index) async {
     if (index < 0 || index >= _library.length) return;
     _currentIndex = index;
     final song = _library[index];
-    await _player.setFilePath(song.filePath);
+
+    await _player.setAudioSource(
+      AudioSource.file(
+        song.filePath,
+        tag: MediaItem(
+          id: song.id,
+          title: song.title,
+          artist: song.artist.isNotEmpty ? song.artist : 'Unknown Artist',
+          album: 'Local Library',
+          // artwork is optional — add song.artworkUri if available
+        ),
+      ),
+    );
     await _player.play();
   }
 
@@ -107,4 +124,4 @@ class LocalAudioDataSource {
   Future<void> dispose() async {
     await _player.dispose();
   }
-}
+}

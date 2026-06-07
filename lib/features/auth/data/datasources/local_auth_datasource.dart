@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:crypto/crypto.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../models/user_model.dart';
@@ -14,6 +16,11 @@ class LocalAuthDataSource {
   static const _userBox = 'users';
   static const _prefsBox = 'preferences';
   static const _sessionBox = 'session';
+  static const _cryptoKey = 'hive_encryption_key';
+
+  static const _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
 
   bool _initialized = false;
 
@@ -21,11 +28,25 @@ class LocalAuthDataSource {
     if (_initialized) return;
     _initialized = true;
 
+    // Retrieve or generate an AES-256 encryption key for Hive.
+    // The key is stored in platform secure storage (Android Keystore /
+    // iOS Keychain) so it is never written to plain disk storage.
+    var keyStr = await _secureStorage.read(key: _cryptoKey);
+    if (keyStr == null) {
+      final rawKey = List<int>.generate(32, (_) => Random.secure().nextInt(256));
+      keyStr = base64UrlEncode(rawKey);
+      await _secureStorage.write(key: _cryptoKey, value: keyStr);
+    }
+    final encKey = base64Url.decode(keyStr);
+    final cipher = HiveAesCipher(encKey);
+
     Hive.registerAdapter(UserModelAdapter());
     Hive.registerAdapter(UserPreferencesModelAdapter());
-    await Hive.openBox<UserModel>(_userBox);
-    await Hive.openBox<UserPreferencesModel>(_prefsBox);
-    await Hive.openBox(_sessionBox);
+    // All three boxes are opened with AES-256 encryption — user data,
+    // PIN hash, session token, and preferences are all encrypted at rest.
+    await Hive.openBox<UserModel>(_userBox, encryptionCipher: cipher);
+    await Hive.openBox<UserPreferencesModel>(_prefsBox, encryptionCipher: cipher);
+    await Hive.openBox(_sessionBox, encryptionCipher: cipher);
   }
 
   String _hashPin(String pin) {
