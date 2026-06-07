@@ -42,11 +42,23 @@ class LocalAuthDataSource {
 
     Hive.registerAdapter(UserModelAdapter());
     Hive.registerAdapter(UserPreferencesModelAdapter());
-    // All three boxes are opened with AES-256 encryption — user data,
-    // PIN hash, session token, and preferences are all encrypted at rest.
-    await Hive.openBox<UserModel>(_userBox, encryptionCipher: cipher);
-    await Hive.openBox<UserPreferencesModel>(_prefsBox, encryptionCipher: cipher);
-    await Hive.openBox(_sessionBox, encryptionCipher: cipher);
+
+    // Open all three boxes with AES-256 encryption.
+    // If existing unencrypted boxes are found (first run after this upgrade),
+    // the open will throw a HiveError — we delete and recreate them encrypted.
+    // The user will be signed out once but all future data is encrypted at rest.
+    try {
+      await Hive.openBox<UserModel>(_userBox, encryptionCipher: cipher);
+      await Hive.openBox<UserPreferencesModel>(_prefsBox, encryptionCipher: cipher);
+      await Hive.openBox(_sessionBox, encryptionCipher: cipher);
+    } catch (_) {
+      await Hive.deleteBoxFromDisk(_userBox);
+      await Hive.deleteBoxFromDisk(_prefsBox);
+      await Hive.deleteBoxFromDisk(_sessionBox);
+      await Hive.openBox<UserModel>(_userBox, encryptionCipher: cipher);
+      await Hive.openBox<UserPreferencesModel>(_prefsBox, encryptionCipher: cipher);
+      await Hive.openBox(_sessionBox, encryptionCipher: cipher);
+    }
   }
 
   String _hashPin(String pin) {
