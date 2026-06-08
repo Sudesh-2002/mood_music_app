@@ -30,6 +30,7 @@ class _MoodDetectionPageState extends State<MoodDetectionPage> {
   late final CameraDataSource _cameraSource;
   late final MoodDetectionBloc _bloc;
   Timer? _captureTimer;
+  Timer? _fallbackTimer;
   MoodResult? _lastResult;
   bool _showResult = false;
 
@@ -67,6 +68,14 @@ class _MoodDetectionPageState extends State<MoodDetectionPage> {
       final bytes = await file.readAsBytes();
       _bloc.add(CameraFrameCaptured(bytes));
     });
+
+    // Fallback: if confidence never reaches threshold in 15 s,
+    // navigate anyway using the best result seen (or neutral).
+    _fallbackTimer = Timer(const Duration(seconds: 15), () {
+      if (!mounted) return;
+      final mood = _lastResult?.mood ?? MoodLabel.neutral;
+      context.go('/player', extra: mood);
+    });
   }
 
   void _onMoodDetected(MoodResult result) async {
@@ -88,6 +97,7 @@ class _MoodDetectionPageState extends State<MoodDetectionPage> {
     );
 
     if (widget.autoNavigate && result.isReliable) {
+      _fallbackTimer?.cancel(); // reliable result found — no need for fallback
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) {
           context.go('/player', extra: result.mood);
@@ -99,6 +109,7 @@ class _MoodDetectionPageState extends State<MoodDetectionPage> {
   @override
   void dispose() {
     _captureTimer?.cancel();
+    _fallbackTimer?.cancel();
     _bloc.close();
     _cameraSource.dispose();
     super.dispose();
