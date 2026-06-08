@@ -9,18 +9,14 @@ import 'features/mood_detection/data/datasources/mood_history_datasource.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Enables background playback + lock-screen media controls.
-  // Wrapped in try-catch: a failure here must never block runApp.
-  try {
-    await JustAudioBackground.init(
-      androidNotificationChannelId: 'com.moodmusic.app.audio',
-      androidNotificationChannelName: 'Mood Music',
-      androidNotificationOngoing: true,
-      androidStopForegroundOnPause: true,
-    );
-  } catch (e) {
-    debugPrint('[Audio] JustAudioBackground init failed (non-fatal): $e');
-  }
+  // Enables background playback + lock-screen media controls for all
+  // AudioPlayer instances in the app (including LocalAudioDataSource).
+  await JustAudioBackground.init(
+    androidNotificationChannelId: 'com.moodmusic.app.audio',
+    androidNotificationChannelName: 'Mood Music',
+    androidNotificationOngoing: true,
+    androidStopForegroundOnPause: true,
+  );
 
   await Hive.initFlutter();
   await LocalAuthDataSource().init();
