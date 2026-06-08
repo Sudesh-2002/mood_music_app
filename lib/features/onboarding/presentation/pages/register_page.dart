@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../features/auth/data/datasources/local_auth_datasource.dart';
-import '../../../../features/auth/data/datasources/registration_temp.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -35,8 +34,8 @@ class _RegisterPageState extends State<RegisterPage> {
       // Store temp data and go to source selection
       // We'll pass name+pin via route extras in a real app;
       // here we store in a simple static holder
-      RegistrationTemp().name = _nameController.text.trim();
-      RegistrationTemp().pin  = _pinController.text.trim();
+      _TempRegistration.name = _nameController.text.trim();
+      _TempRegistration.pin  = _pinController.text.trim();
       if (mounted) context.go('/sources');
     } catch (e) {
       setState(() { _error = e.toString(); });
@@ -152,4 +151,9 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 }
-
+
+// Temporary in-memory holder between pages
+class _TempRegistration {
+  static String name = '';
+  static String pin = '';
+}
