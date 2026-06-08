@@ -27,17 +27,16 @@ class TFLiteEmotionDataSource {
   bool _isInitialized = false;
   bool _useMockMode = false;
 
-  // Alphabetical label order — matches the order ImageDataGenerator uses
-  // when reading training folders sorted by name:
-  //   angry=0, disgust=1, fear=2, happy=3, neutral=4, sad=5, surprise=6
+  // RAF-DB standard label order (verified against official dataset indexing)
+  // Ref: https://whdeng.cn/RAF/model1.html
   static const List<MoodLabel> _labelOrder = [
-    MoodLabel.angry,      // 0
-    MoodLabel.disgusted,  // 1
-    MoodLabel.fearful,    // 2
-    MoodLabel.happy,      // 3
-    MoodLabel.neutral,    // 4
-    MoodLabel.sad,        // 5
-    MoodLabel.surprised,  // 6
+    MoodLabel.surprised,  // 0 — Surprise
+    MoodLabel.fearful,    // 1 — Fear
+    MoodLabel.disgusted,  // 2 — Disgust
+    MoodLabel.happy,      // 3 — Happiness
+    MoodLabel.sad,        // 4 — Sadness
+    MoodLabel.angry,      // 5 — Anger
+    MoodLabel.neutral,    // 6 — Neutral
   ];
 
   // Face detector instance

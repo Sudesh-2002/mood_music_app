@@ -4,7 +4,6 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/constants/mood_constants.dart';
 import '../../../../features/auth/data/datasources/local_auth_datasource.dart';
-import '../../../../features/auth/data/datasources/registration_temp.dart';
 
 class SourceSelectionPage extends StatefulWidget {
   const SourceSelectionPage({super.key});
@@ -35,11 +34,10 @@ class _SourceSelectionPageState extends State<SourceSelectionPage> {
     try {
       final auth = LocalAuthDataSource();
       await auth.register(
-        name: RegistrationTemp().name,
-        pin: RegistrationTemp().pin,
+        name: _TempRegistration.name,
+        pin: _TempRegistration.pin,
         musicSources: _selected.map((s) => s.name).toList(),
       );
-      RegistrationTemp().clear(); // clean up after use
       if (mounted) context.go('/permissions');
     } catch (e) {
       setState(() { _error = e.toString(); });
@@ -173,4 +171,9 @@ class _SourceItem {
   final Color color;
   final String subtitle;
   const _SourceItem(this.source, this.icon, this.color, this.subtitle);
-}
+}
+
+class _TempRegistration {
+  static String name = '';
+  static String pin = '';
+}
