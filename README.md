@@ -67,9 +67,9 @@
 
 ### 🎵 Multi-Source Music
 - **Spotify** integration (OAuth 2.0)
-- **YouTube** playback (Data API v3)
-- **Local files** support (file picker + library)
-- Background audio + **lock screen controls**
+- **YouTube** playback
+- **Local files** support
+- Background audio with lock screen controls
 
 </td>
 </tr>
@@ -77,8 +77,8 @@
 <td width="50%">
 
 ### 🔐 Authentication
-- Secure local auth with **SHA-256 hashed PIN**
-- **AES-256 encrypted** Hive storage (key in Keystore/Keychain)
+- Secure local auth (PIN / biometric)
+- Encrypted credential storage
 - Session persistence with Hive
 
 </td>
