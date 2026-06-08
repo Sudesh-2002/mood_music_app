@@ -204,7 +204,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildTile(
               icon: Icons.psychology_rounded,
               title: 'Emotion Model',
-              subtitle: 'RAF-DB · emotion_model.tflite — 7 emotions',
+              subtitle: 'FER2013 — 7 emotions',
               iconColor: AppColors.primary,
             ),
 
