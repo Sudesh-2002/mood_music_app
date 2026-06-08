@@ -2,8 +2,8 @@
     <application
         android:label="Mood Music App"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
-        android:usesCleartextTraffic="true"
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
 
         <service
             android:name="com.ryanheise.audioservice.AudioServiceBackground"

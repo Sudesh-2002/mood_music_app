@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.yourcompany.mood_music_app"
+    namespace = "com.sudesh.moodmusic"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -19,7 +19,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.yourcompany.mood_music_app"
+        applicationId = "com.sudesh.moodmusic"
         minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -30,6 +30,11 @@ android {
         release {
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+
+    androidResources {
+        noCompress += "tflite"
+        noCompress += "lite"
     }
 }
 
