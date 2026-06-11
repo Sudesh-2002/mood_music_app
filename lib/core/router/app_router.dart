@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../constants/mood_constants.dart';
 import '../../features/onboarding/presentation/pages/splash_page.dart';
@@ -63,6 +64,43 @@ class AppRouter {
       GoRoute(
         path: '/spotify-connect',
         builder: (c, s) => const SpotifyConnectPage()),
+      GoRoute(
+        path: '/callback',
+        builder: (c, s) {
+          return const _OAuthCallbackPage();
+        },
+      ),
     ],
   );
+}
+
+class _OAuthCallbackPage extends StatelessWidget {
+  const _OAuthCallbackPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 20),
+            const Text('Connecting Spotify…'),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/settings');
+                }
+              },
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

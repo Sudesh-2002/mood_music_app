@@ -15,7 +15,8 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   UserModel? _user;
-  Set<MusicSource> _sources = {};
+  // Only ONE source active at a time (radio button behaviour)
+  MusicSource _activeSource = MusicSource.youtube;
 
   @override
   void initState() {
@@ -26,15 +27,23 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadUser() async {
     final user = await LocalAuthDataSource().getCurrentUser();
     if (mounted && user != null) {
+      // Use the first saved source; fall back to youtube
+      final saved = user.musicSources
+          .map((s) => MusicSource.values.firstWhere(
+                (m) => m.name == s,
+                orElse: () => MusicSource.youtube,
+              ))
+          .toList();
       setState(() {
         _user = user;
-        _sources = user.musicSources
-            .map((s) => MusicSource.values
-                .firstWhere((m) => m.name == s,
-                    orElse: () => MusicSource.youtube))
-            .toSet();
+        _activeSource = saved.isNotEmpty ? saved.first : MusicSource.youtube;
       });
     }
+  }
+
+  Future<void> _selectSource(MusicSource source) async {
+    setState(() => _activeSource = source);
+    await LocalAuthDataSource().updateMusicSources([source.name]);
   }
 
   Future<void> _signOut() async {
@@ -150,19 +159,21 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
 
-            // Music sources
-            _buildSection('MUSIC SOURCES'),
-            ...[
-              _sourcesTile(MusicSource.youtube,
-                  Icons.play_circle_fill_rounded,
-                  const Color(0xFFFF0000)),
-              _sourcesTile(MusicSource.spotify,
-                  Icons.library_music_rounded,
-                  const Color(0xFF1DB954)),
-              _sourcesTile(MusicSource.local,
-                  Icons.folder_rounded,
-                  const Color(0xFFFFD93D)),
-            ],
+            // Music sources — radio button style, only one active
+            _buildSection('MUSIC SOURCE'),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 10),
+              child: Text(
+                'Select one source. Mood music will play through it.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              ),
+            ),
+            _sourceTile(MusicSource.youtube,
+                Icons.play_circle_fill_rounded, const Color(0xFFFF0000)),
+            _sourceTile(MusicSource.spotify,
+                Icons.library_music_rounded, const Color(0xFF1DB954)),
+            _sourceTile(MusicSource.local,
+                Icons.folder_rounded, const Color(0xFFFFD93D)),
 
             _buildTile(
               icon: Icons.library_music_rounded,
@@ -224,39 +235,50 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _sourcesTile(
-      MusicSource source, IconData icon, Color color) {
-    final isEnabled = _sources.contains(source);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: AppColors.bgCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isEnabled ? color.withOpacity(0.4) : Colors.transparent,
+  Widget _sourceTile(MusicSource source, IconData icon, Color color) {
+    final isActive = _activeSource == source;
+    return GestureDetector(
+      onTap: () => _selectSource(source),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isActive ? color.withOpacity(0.12) : AppColors.bgCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isActive ? color.withOpacity(0.6) : Colors.transparent,
+            width: 1.5,
+          ),
         ),
-      ),
-      child: ListTile(
-        leading: Icon(icon, color: color, size: 22),
-        title: Text(source.displayName,
-            style: const TextStyle(
-                color: AppColors.textPrimary, fontSize: 15)),
-        trailing: Switch(
-          value: isEnabled,
-          activeColor: color,
-          onChanged: (val) async {
-            setState(() {
-              if (val) {
-                _sources.add(source);
-              } else {
-                _sources.remove(source);
-              }
-            });
-            // Persist the updated sources to Hive immediately
-            await LocalAuthDataSource().updateMusicSources(
-              _sources.map((s) => s.name).toList(),
-            );
-          },
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(source.displayName,
+                  style: const TextStyle(
+                      color: AppColors.textPrimary, fontSize: 15)),
+            ),
+            // Radio indicator
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isActive ? color : AppColors.textSecondary,
+                  width: 2,
+                ),
+                color: isActive ? color : Colors.transparent,
+              ),
+              child: isActive
+                  ? const Icon(Icons.check_rounded,
+                      size: 13, color: Colors.white)
+                  : null,
+            ),
+          ],
         ),
       ),
     );
