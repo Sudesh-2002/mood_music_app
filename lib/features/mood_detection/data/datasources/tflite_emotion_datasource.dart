@@ -1,4 +1,4 @@
-import 'dart:math' show exp;
+import 'dart:math' show exp, log;
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'package:logger/logger.dart';
@@ -9,8 +9,17 @@ import 'face_detection_datasource.dart';
 
 class TFLiteEmotionDataSource {
   static const _modelPath = 'assets/models/emotion_model.tflite';
-  static const _inputSize = 48;
+
+  // RAF-DB MobileNet/ResNet backbones are trained at 224x224.
+  // Using 48x48 (FER2013 size) destroys all spatial information and causes
+  // the model to collapse to its dominant class (Neutral) with high confidence.
+  static const _inputSize = 224;
   static const _numClasses = 7;
+
+  // Temperature scaling: T > 1 softens the output distribution, reducing
+  // extreme overconfidence on the dominant class (Neutral) and giving
+  // minority emotions a fairer chance to surface.
+  static const _temperature = 1.5;
 
   static final _log = Logger(
     printer: PrettyPrinter(
@@ -30,13 +39,13 @@ class TFLiteEmotionDataSource {
   // RAF-DB standard label order (verified against official dataset indexing)
   // Ref: https://whdeng.cn/RAF/model1.html
   static const List<MoodLabel> _labelOrder = [
-    MoodLabel.surprised,  // 0 — Surprise
-    MoodLabel.fearful,    // 1 — Fear
-    MoodLabel.disgusted,  // 2 — Disgust
-    MoodLabel.happy,      // 3 — Happiness
-    MoodLabel.sad,        // 4 — Sadness
-    MoodLabel.angry,      // 5 — Anger
-    MoodLabel.neutral,    // 6 — Neutral
+    MoodLabel.surprised,  // 0 - Surprise
+    MoodLabel.fearful,    // 1 - Fear
+    MoodLabel.disgusted,  // 2 - Disgust
+    MoodLabel.happy,      // 3 - Happiness
+    MoodLabel.sad,        // 4 - Sadness
+    MoodLabel.angry,      // 5 - Anger
+    MoodLabel.neutral,    // 6 - Neutral
   ];
 
   // Face detector instance
@@ -54,14 +63,14 @@ class TFLiteEmotionDataSource {
       _faceDetector.initialize();
       _isInitialized = true;
       _useMockMode = false;
-      _log.i('[TFLite] ✅ emotion_model.tflite loaded successfully — REAL MODEL ACTIVE');
+      _log.i('[TFLite] emotion_model.tflite loaded successfully -- REAL MODEL ACTIVE');
       return true;
     } catch (e) {
       _useMockMode = true;
       _isInitialized = true;
       _faceDetector.initialize();
       _log.w(
-        '[TFLite] ⚠️ Failed to load emotion_model.tflite — falling back to MOCK MODE\n'
+        '[TFLite] Failed to load emotion_model.tflite -- falling back to MOCK MODE\n'
         'Reason: $e',
       );
       return true;
@@ -76,15 +85,15 @@ class TFLiteEmotionDataSource {
     final faceBytes = await _faceDetector.detectAndCropFace(jpegBytes);
 
     if (faceBytes == null) {
-      _log.d('[TFLite] 🚫 No face detected in frame');
+      _log.d('[TFLite] No face detected in frame');
       return _noFaceResult();
     }
 
-    _log.d('[TFLite] 👤 Face detected — cropped size: ${faceBytes.lengthInBytes} bytes');
+    _log.d('[TFLite] Face detected -- cropped size: ${faceBytes.lengthInBytes} bytes');
 
     // Run mock or real model on cropped face
     if (_useMockMode) {
-      _log.w('[TFLite] ⚠️ Returning MOCK result (real model not loaded)');
+      _log.w('[TFLite] Returning MOCK result (real model not loaded)');
       return _mockResult();
     }
 
@@ -96,15 +105,14 @@ class TFLiteEmotionDataSource {
       }
 
       final input = _preprocessImage(image);
-      final output =
-          List.generate(1, (_) => List.filled(_numClasses, 0.0));
+      final output = List.generate(1, (_) => List.filled(_numClasses, 0.0));
 
       _interpreter!.run(input, output);
 
       final scores = List<double>.from(output[0]);
 
       // Log raw scores for all 7 emotion classes
-      final scoreLog = StringBuffer('[TFLite] 📊 Raw model scores:\n');
+      final scoreLog = StringBuffer('[TFLite] Raw model scores:\n');
       for (int i = 0; i < _labelOrder.length; i++) {
         scoreLog.writeln('  ${_labelOrder[i].name.padRight(10)}: ${scores[i].toStringAsFixed(4)}');
       }
@@ -112,12 +120,12 @@ class TFLiteEmotionDataSource {
 
       final result = _buildResult(scores);
       _log.i(
-        '[TFLite] 🎭 Detected emotion: ${result.mood.name.toUpperCase()} '
+        '[TFLite] Detected emotion: ${result.mood.name.toUpperCase()} '
         '(confidence: ${(result.confidence * 100).toStringAsFixed(1)}%)',
       );
       return result;
     } catch (e) {
-      _log.e('[TFLite] ❌ Inference error — falling back to mock result\nError: $e');
+      _log.e('[TFLite] Inference error -- falling back to mock result\nError: $e');
       return _mockResult();
     }
   }
@@ -158,35 +166,37 @@ class TFLiteEmotionDataSource {
   }
 
   MoodResult _buildResult(List<double> scores) {
-    // FIX #2: Auto-detect whether the model already outputs softmax probabilities
-    // or raw logits, and handle each correctly.
+    // Step 1: Detect if model outputs probabilities or raw logits, then
+    // work uniformly in logit space for temperature scaling.
     //
-    // - If values are all ≥ 0 AND sum ≈ 1.0 → model outputs softmax → use directly.
-    //   Applying softmax AGAIN to already-softmaxed values squashes a confident
-    //   [0.7, 0.1, ...] distribution toward uniform [0.2, 0.16, ...], which was
-    //   the primary cause of the low confidence scores.
-    //
-    // - Otherwise → raw logits → apply proper softmax using dart:math's exp().
-    //   The old _expApprox (Taylor series 1+x+x²/2) introduced up to 87% error
-    //   for values outside [-2, 2], completely corrupting the softmax output.
+    // - If all values >= 0 AND sum ~= 1.0 -> model outputs softmax probs.
+    //   Convert back to log-space: logit = log(p).
+    // - Otherwise -> raw logits, use as-is.
     final rawSum = scores.fold(0.0, (s, v) => s + v);
     final allNonNegative = scores.every((v) => v >= -1e-6);
     final alreadySoftmax = allNonNegative && (rawSum - 1.0).abs() < 0.05;
 
-    final List<double> probs;
+    final List<double> logits;
     if (alreadySoftmax) {
-      // FIX #3: Model outputs probabilities — use them directly
-      probs = scores;
-      _log.d('[TFLite] ℹ️ Model output is already softmax (sum=${rawSum.toStringAsFixed(4)})');
+      // Convert probabilities to pseudo-logits via log().
+      // Clamp to 1e-9 to prevent log(0) = -Infinity.
+      logits = scores.map((p) => log(p < 1e-9 ? 1e-9 : p)).toList();
+      _log.d('[TFLite] Model output is softmax -- converting to logits for T-scaling (sum=${rawSum.toStringAsFixed(4)})');
     } else {
-      // FIX #3: Model outputs logits — apply numerically stable softmax
-      // using dart:math exp() instead of the broken Taylor approximation
-      final maxVal = scores.reduce((a, b) => a > b ? a : b);
-      final exps = scores.map((s) => exp(s - maxVal)).toList();
-      final sumExp = exps.reduce((a, b) => a + b);
-      probs = exps.map((e) => e / sumExp).toList();
-      _log.d('[TFLite] ℹ️ Applied softmax to logits (raw sum=${rawSum.toStringAsFixed(4)})');
+      logits = List<double>.from(scores);
+      _log.d('[TFLite] Model output is raw logits (raw sum=${rawSum.toStringAsFixed(4)})');
     }
+
+    // Step 2: Temperature scaling (T=_temperature).
+    // Dividing logits by T > 1 softens the distribution, reducing extreme
+    // overconfidence on Neutral and allowing minority emotions to surface.
+    final scaledLogits = logits.map((l) => l / _temperature).toList();
+
+    // Step 3: Numerically stable softmax on scaled logits.
+    final maxVal = scaledLogits.reduce((a, b) => a > b ? a : b);
+    final exps = scaledLogits.map((s) => exp(s - maxVal)).toList();
+    final sumExp = exps.reduce((a, b) => a + b);
+    final probs = exps.map((e) => e / sumExp).toList();
 
     int maxIdx = 0;
     for (int i = 1; i < probs.length; i++) {
@@ -194,9 +204,9 @@ class TFLiteEmotionDataSource {
     }
 
     // Log final probabilities
-    final probLog = StringBuffer('[TFLite] 📈 Emotion probabilities:\n');
+    final probLog = StringBuffer('[TFLite] Emotion probabilities:\n');
     for (int i = 0; i < _labelOrder.length; i++) {
-      final bar = '█' * (probs[i] * 20).round();
+      final bar = '\u2588' * (probs[i] * 20).round();
       probLog.writeln(
         '  ${_labelOrder[i].name.padRight(10)}: ${(probs[i] * 100).toStringAsFixed(1).padLeft(5)}%  $bar',
       );
@@ -230,7 +240,7 @@ class TFLiteEmotionDataSource {
   }
 
   MoodResult _mockResult() {
-    final moods = MoodLabel.values;
+    const moods = MoodLabel.values;
     final idx = DateTime.now().millisecond % moods.length;
     final mood = moods[idx];
     final allScores = <MoodLabel, double>{

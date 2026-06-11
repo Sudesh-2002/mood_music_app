@@ -2,8 +2,8 @@
     <application
         android:label="Mood Music App"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
-        android:usesCleartextTraffic="true"
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
 
         <service
             android:name="com.ryanheise.audioservice.AudioServiceBackground"
@@ -42,13 +42,23 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <intent-filter>
+        </activity>
+
+        <!-- Required by flutter_web_auth_2 to capture the OAuth callback URI.
+             This activity intercepts moodmusic://callback/ and passes the code
+             back to FlutterWebAuth2.authenticate() via a platform channel.
+             DO NOT add the moodmusic scheme to MainActivity's intent-filter —
+             that would cause a conflict and the plugin would never receive it. -->
+        <activity
+            android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity="">
+            <intent-filter android:label="flutter_web_auth_2">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data
-                    android:scheme="moodmusic"
-                    android:host="callback"/>
+                <data android:scheme="moodmusic"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

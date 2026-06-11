@@ -31,30 +31,25 @@ class _PlayerPageState extends State<PlayerPage> {
     _initBloc();
   }
 
-  /// Reads the user's selected music sources from Hive and picks the best one.
-  /// Priority: Spotify > YouTube > Local
-  /// If Local is the ONLY source, redirect to /local-player immediately.
+  /// Reads the user's selected music source from Hive (single value, radio-button model)
+  /// and routes to the correct player.
   Future<void> _initBloc() async {
     final user = await LocalAuthDataSource().getCurrentUser();
     final sourceNames = user?.musicSources ?? ['youtube'];
 
-    final sources = sourceNames
-        .map((s) => MusicSource.values.firstWhere(
-              (m) => m.name == s,
-              orElse: () => MusicSource.youtube,
-            ))
-        .toSet();
+    // Only one source is ever saved now (radio button in settings).
+    // Fall back to youtube if list is somehow empty.
+    final chosen = sourceNames.isNotEmpty
+        ? MusicSource.values.firstWhere(
+            (m) => m.name == sourceNames.first,
+            orElse: () => MusicSource.youtube,
+          )
+        : MusicSource.youtube;
 
-    // If only Local is selected, redirect to local player
-    if (sources.length == 1 && sources.contains(MusicSource.local)) {
+    // Local source → redirect to local player page
+    if (chosen == MusicSource.local) {
       if (mounted) context.go('/local-player');
       return;
-    }
-
-    // Pick best source: Spotify > YouTube
-    MusicSource chosen = MusicSource.youtube;
-    if (sources.contains(MusicSource.spotify)) {
-      chosen = MusicSource.spotify;
     }
 
     final bloc = await PlayerBloc.createForSource(chosen);
